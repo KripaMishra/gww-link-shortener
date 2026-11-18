@@ -17,8 +17,8 @@ table that never changes.
 **Instead.** `export const dynamic = "force-dynamic"` on the page, so the RSC reads per request.
 The form mutation calls `router.refresh()` after success, which now actually re-renders.
 
-**Verified.** `pnpm build` route table marks `/` as dynamic (`ƒ`), and the manual smoke run shows
-a new row after submit + refresh.
+**Verified.** `pnpm build` marks `/` as dynamic (`ƒ`), and the smoke run returned newly created
+rows from `links.list` immediately.
 
 ## D-2 — "The server does not know its public origin" was false
 
