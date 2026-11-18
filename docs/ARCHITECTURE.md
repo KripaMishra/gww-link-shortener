@@ -6,6 +6,22 @@ Every request is short-lived and may run in a different isolate. There is no in-
 no module-level counter, and no `setInterval`. The DB client is created per request from the D1
 binding; all coordination that must survive a request lives in SQL.
 
+```mermaid
+flowchart TB
+  subgraph W["Cloudflare Workers — one short-lived isolate per request"]
+    RSC["Server Component<br/>links.list"]
+    API["tRPC fetch adapter<br/>links.create"]
+    RH["/[slug] route handler"]
+    SVC["links service"]
+  end
+
+  RSC --> SVC
+  API --> SVC
+  RH --> SVC
+  SVC -->|"Drizzle"| D1[("D1 single primary")]
+  SVC -.->|"no module cache, no timers"| STATE["state lives in SQL"]
+```
+
 ## D1 semantics this design relies on
 
 - D1 is a single-primary SQLite database. Writes are serialized on that primary.
@@ -19,6 +35,20 @@ binding; all coordination that must survive a request lives in SQL.
 - Consequence: the limiter is correct as long as writes are serialized. If this ever moved to a
   multi-primary or eventually-consistent store, the limiter would need a Durable Object (or a
   Redis Lua script) to keep the same guarantee. That is the honest caveat behind "it's atomic".
+
+```mermaid
+sequenceDiagram
+  participant A as Request A
+  participant B as Request B
+  participant DB as D1 primary
+
+  A->>DB: INSERT ... SELECT WHERE count below 5 RETURNING 1
+  Note over DB: write lock held;<br/>COUNT and INSERT evaluate together
+  DB-->>A: 1 row → allowed
+  B->>DB: INSERT ... SELECT WHERE count below 5 RETURNING 1
+  Note over DB: sees A's committed row
+  DB-->>B: 0 rows → rejected
+```
 
 ## Limiter designs considered
 
@@ -35,6 +65,15 @@ binding; all coordination that must survive a request lives in SQL.
 Chosen: sliding-window log in D1. Rejected attempts insert nothing, so a user has at most five
 rows in the window and the count touches at most five index entries. Lazy cleanup on success
 keeps the table at roughly 5 rows per active user with no cron.
+
+```mermaid
+flowchart TD
+  Q{"What does the requirement actually say?"}
+  Q -->|"hard cap: 5 in any rolling 60s"| SW["Sliding-window log<br/>chosen"]
+  Q -->|"sustained 5/min, bursts allowed"| TB["Token bucket / GCRA"]
+  Q -->|"cheap, boundary burst acceptable"| FW["Fixed window"]
+  Q -->|"global per-user, high QPS"| DO["Durable Object"]
+```
 
 ## Click counting
 
@@ -54,6 +93,16 @@ queue or analytics pipeline.
 | Rate-limit checks > ~10³/s or multi-region | Durable Object per user (token bucket with alarms) or Upstash sliding window |
 | D1 write throughput or region latency | D1 read replication for list reads; Postgres + Hyperdrive if writes outgrow a single primary. The limiter must keep hitting the primary |
 | Listing beyond 50 rows | Cursor pagination on `(created_at, id)`; the current index already supports it |
+
+```mermaid
+flowchart LR
+  NOW["Now:<br/>D1 single primary"] --> R{"Pressure"}
+  R -->|"redirect reads<br/>above 10² rps"| C["Cache slug→target<br/>KV / Cache API"]
+  R -->|"click writes<br/>above 10³/s"| Q["Queue batches<br/>Analytics Engine"]
+  R -->|"limiter checks<br/>above 10³/s or multi-region"| D["Durable Object<br/>per user"]
+  R -->|"list beyond 50"| P["Cursor pagination"]
+  R -->|"writes outgrow<br/>the primary"| PG["Postgres + Hyperdrive<br/>limiter stays on primary"]
+```
 
 ## What is intentionally absent
 

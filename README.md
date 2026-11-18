@@ -8,6 +8,36 @@ The interesting part is the edge constraints: no long-lived process, no shared i
 memory, and no timers between requests. The rate limiter and the click counter are therefore
 decided in single SQL statements, not in JavaScript.
 
+## Architecture at a glance
+
+```mermaid
+flowchart LR
+  B["Browser"]
+
+  subgraph Next["Next.js App Router on Workers"]
+    Page["/ — Server Component<br/>links.list"]
+    Form["CreateLinkForm<br/>(client)"]
+    API["/api/trpc/[trpc]<br/>fetch adapter"]
+    Redirect["/[slug]<br/>route handler"]
+    Service["links service<br/>validate · limit · slug"]
+  end
+
+  DB[("D1<br/>links · rate_limit_events")]
+
+  B -->|"GET /"| Page
+  B -->|"submit URL"| Form
+  Form -->|"tRPC mutation"| API --> Service
+  Page -->|"server caller<br/>(no HTTP hop)"| Service
+  B -->|"GET /slug"| Redirect
+  Redirect -->|"UPDATE clicks + 1<br/>RETURNING target"| DB
+  Redirect -->|"302"| B
+  Service -->|"Drizzle"| DB
+```
+
+Three request paths matter. The list is rendered on the server and never ships a data-fetching
+client. The redirect is a route handler, not a page, so it can increment and redirect in one
+round trip. The only client-side JavaScript that touches the network is the create form.
+
 ## Requirements
 
 - Node.js 20+
@@ -39,7 +69,7 @@ any cloud account. `user_demo` is the current user; auth is out of scope.
 ## How it works
 
 - **Create:** `links.create` validates the URL (http/https only, max 2048 chars), consumes one
-  rate-limit token with an atomic conditional `INSERT`, generates a 7-character slug, and inserts
+  rate-limit slot with an atomic conditional `INSERT`, generates a 7-character slug, and inserts
   the row. Slug collisions retry up to three times.
 - **List:** the Server Component calls the tRPC router through a server-side caller — no HTTP hop
   — and renders the table. The page is `force-dynamic`, so it reads per request. The client form
@@ -50,6 +80,37 @@ any cloud account. `user_demo` is the current user; auth is out of scope.
 - **Rate limit:** a sliding-window log, 5 successful creations per rolling 60 seconds per user.
   The count and the insert are one statement, so there is no read-then-write race. Rejected
   attempts write nothing, and validation runs before the limiter so bad input never burns quota.
+
+### Create request
+
+```mermaid
+sequenceDiagram
+  participant U as Browser
+  participant F as CreateLinkForm
+  participant T as tRPC router
+  participant L as Rate limiter
+  participant D as D1
+
+  U->>F: paste URL, submit
+  F->>T: links.create({ url })
+  T->>T: validate http(s), 2048 char cap
+
+  T->>L: consume one slot
+  L->>D: INSERT ... SELECT WHERE count below 5<br/>RETURNING 1
+
+  alt slot available
+    D-->>L: 1 row
+    T->>D: INSERT link (slug retry ×3)
+    T->>D: prune events older than 60s
+    T-->>F: { slug }
+    F->>F: router.refresh()
+    Note over F: the RSC re-reads links.list
+  else five in the last 60s
+    D-->>L: 0 rows
+    T-->>F: TOO_MANY_REQUESTS + retryAfter
+    F-->>U: inline error, no row written
+  end
+```
 
 ## Tests
 
