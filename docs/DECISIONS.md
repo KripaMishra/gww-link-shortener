@@ -45,8 +45,8 @@ asserted the string contained a number.
 there is no typed contract between the router and the form.
 
 **Instead.** `TRPCError({ code: "TOO_MANY_REQUESTS", cause: { retryAfter } })`, with an
-`errorFormatter` that exposes `data.retryAfter`; the message stays human-readable and the test
-asserts the typed field.
+`errorFormatter` that exposes `data.retryAfter`; the message stays human-readable, the test
+asserts the typed field, and the form disables the button and counts down from that field.
 
 **Verified.** The formatter is unit-tested with a synthetic error, and the integration case
 asserts `error.cause.retryAfter` on the server caller.
@@ -77,4 +77,17 @@ this plugin version.
 **Instead.** Keep migrations in the setup file and delete both tables in `beforeEach`.
 
 **Verified.** Before the reset the suite failed with `expected length 5 but got 10`; after the
-reset, 9/9 pass. This is a test-harness constraint, not a product behaviour.
+reset, 10/10 pass. This is a test-harness constraint, not a product behaviour.
+
+## D-6 — HEAD requests were counted as clicks
+
+**Suggested.** Export only `GET`; Next routes `HEAD` to the GET handler automatically.
+
+**Why wrong.** Every link preview, mail scanner, or unfurler that HEADs a short link incremented
+`clicks`. The runbook's own `curl -sI` check inflated the number it was about to verify.
+
+**Instead.** An explicit `HEAD` handler that resolves the target with the same validation but
+without the `UPDATE`; `handleRedirect` takes `{ count: false }`.
+
+**Verified.** T-23 asserts clicks stay 0 after a HEAD and become 1 after a GET; manual `curl -sI`
+showed the same.

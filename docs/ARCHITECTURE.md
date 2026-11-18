@@ -78,7 +78,10 @@ flowchart TD
 ## Click counting
 
 The redirect awaits one atomic increment before responding, trading a few milliseconds for exact
-counts. Alternatives: `waitUntil` fire-and-forget (faster redirect, best-effort counts) or
+counts. `HEAD` resolves the target without incrementing, so link previews and mail scanners do not
+inflate the count. A corrupt target is counted once before the 500; targets are immutable, so only
+a direct DB edit can reach that path. Alternatives: `waitUntil` fire-and-forget (faster redirect,
+best-effort counts) or
 queue-batched events (the option above ~10³ writes/s, or when a link goes viral and the single
 row becomes a contention point). Because the redirect currently reads the target in the same
 statement that increments it, there is no cache in front; adding one would move counting to a
@@ -89,7 +92,7 @@ queue or analytics pipeline.
 | Pressure | Change |
 |---|---|
 | Redirect reads > ~10² rps | Cache slug → target in Cloudflare KV/Cache API; move counting to a queue/Analytics Engine |
-| Click writes > ~10³/s | Batch increments via Cloudflare Queues; stop updating the hot row synchronously |
+| Click writes above ~10³/s | Batch increments via Cloudflare Queues; stop updating the hot row synchronously |
 | Rate-limit checks > ~10³/s or multi-region | Durable Object per user (token bucket with alarms) or Upstash sliding window |
 | D1 write throughput or region latency | D1 read replication for list reads; Postgres + Hyperdrive if writes outgrow a single primary. The limiter must keep hitting the primary |
 | Listing beyond 50 rows | Cursor pagination on `(created_at, id)`; the current index already supports it |

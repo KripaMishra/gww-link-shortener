@@ -33,7 +33,12 @@ export async function createLink(
   targetUrl: string,
 ): Promise<{ slug: string }> {
   const decision = await consumeRateLimit(db, ownerId, now);
-  if (!decision.allowed) throw new RateLimitedError(decision.retryAfter);
+  if (!decision.allowed) {
+    console.log(
+      JSON.stringify({ event: "link.rate_limited", ownerId, retryAfter: decision.retryAfter }),
+    );
+    throw new RateLimitedError(decision.retryAfter);
+  }
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const slug = generate();
@@ -47,6 +52,7 @@ export async function createLink(
         createdAt: now,
       });
       await pruneRateLimitEvents(db, ownerId, now);
+      console.log(JSON.stringify({ event: "link.created", ownerId, slug }));
       return { slug };
     } catch (error) {
       if (!isUniqueViolation(error)) throw error;
@@ -84,19 +90,40 @@ export async function resolveAndCount(db: Db, slug: string): Promise<string | nu
   return rows[0]?.targetUrl ?? null;
 }
 
+export async function resolveTarget(db: Db, slug: string): Promise<string | null> {
+  const rows = await db
+    .select({ targetUrl: links.targetUrl })
+    .from(links)
+    .where(eq(links.slug, slug))
+    .limit(1);
+
+  return rows[0]?.targetUrl ?? null;
+}
+
 export type RedirectResult =
   | { status: 302; location: string }
   | { status: 404 }
   | { status: 500 };
 
-export async function handleRedirect(db: Db, slug: string): Promise<RedirectResult> {
+/**
+ * `count: false` is used by HEAD so link previews and scanners do not inflate
+ * the click counter.
+ */
+export async function handleRedirect(
+  db: Db,
+  slug: string,
+  options: { count?: boolean } = {},
+): Promise<RedirectResult> {
   // Shape check first: malformed slugs never reach the database.
   if (!isValidSlug(slug)) return { status: 404 };
 
-  const target = await resolveAndCount(db, slug);
+  const target =
+    options.count === false ? await resolveTarget(db, slug) : await resolveAndCount(db, slug);
   if (target === null) return { status: 404 };
 
-  // Defence in depth for a corrupted/tampered row.
+  // Defence in depth for a corrupted/tampered row. The increment has already
+  // happened at this point; the target is immutable, so only tampered data is
+  // affected.
   if (parseTargetUrl(target) === null) return { status: 500 };
 
   return { status: 302, location: target };

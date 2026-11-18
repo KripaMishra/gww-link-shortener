@@ -173,4 +173,28 @@ describe("redirect", () => {
       status: 404,
     });
   });
+
+  it("does not increment for a HEAD/preview lookup", async () => {
+    const { slug } = await callerAt(4_000_000).links.create({
+      url: "https://example.com/head",
+    });
+
+    await expect(handleRedirect(db, slug, { count: false })).resolves.toEqual({
+      status: 302,
+      location: "https://example.com/head",
+    });
+
+    const [afterHead] = await db
+      .select()
+      .from(schema.links)
+      .where(eq(schema.links.slug, slug));
+    expect(afterHead?.clicks).toBe(0);
+
+    await handleRedirect(db, slug);
+    const [afterGet] = await db
+      .select()
+      .from(schema.links)
+      .where(eq(schema.links.slug, slug));
+    expect(afterGet?.clicks).toBe(1);
+  });
 });

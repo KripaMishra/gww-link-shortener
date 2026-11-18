@@ -10,6 +10,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "db:migrate": "wrangler d1 migrations apply DB --local",
+    "db:reset": "wrangler d1 execute DB --local --command \"DELETE FROM links; DELETE FROM rate_limit_events;\"",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },

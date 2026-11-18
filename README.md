@@ -60,10 +60,13 @@ any cloud account. `user_demo` is the current user; auth is out of scope.
 |---|---|
 | `pnpm dev` | Next.js dev server with the OpenNext D1 binding |
 | `pnpm db:migrate` | Apply migrations to the local D1 database |
+| `pnpm db:reset` | Delete all local links and limiter events |
 | `pnpm test` | Vitest in workerd against a real D1 binding |
 | `pnpm typecheck` | `tsc --noEmit` |
 | `pnpm lint` | ESLint |
 | `pnpm build` | Production Next.js build |
+| `pnpm start` | Serve the production build |
+| `pnpm preview` | Build and preview the Workers bundle with OpenNext |
 | `pnpm deploy` | Build and deploy with OpenNext (needs a real D1 `database_id`) |
 
 ## How it works
@@ -73,10 +76,12 @@ any cloud account. `user_demo` is the current user; auth is out of scope.
   the row. Slug collisions retry up to three times.
 - **List:** the Server Component calls the tRPC router through a server-side caller — no HTTP hop
   — and renders the table. The page is `force-dynamic`, so it reads per request. The client form
-  calls `router.refresh()` after a successful mutation.
+  calls `router.refresh()` after a successful mutation. A list failure is caught in the page and
+  rendered as an inline alert with the migration hint, not a blank 500.
 - **Redirect:** `GET /[slug]` validates the slug shape, runs one `UPDATE … SET clicks = clicks + 1
   … RETURNING target_url`, and redirects with `302`. Not `301`: a permanent redirect is cached by
-  the browser and click counting stops.
+  the browser and click counting stops. `HEAD` resolves the target without incrementing, so link
+  previews and mail scanners do not count as clicks.
 - **Rate limit:** a sliding-window log, 5 successful creations per rolling 60 seconds per user.
   The count and the insert are one statement, so there is no read-then-write race. Rejected
   attempts write nothing, and validation runs before the limiter so bad input never burns quota.
@@ -116,7 +121,7 @@ sequenceDiagram
 
 `pnpm test` runs the ship set from `docs/TEST-PLAN.md` inside workerd with a real D1 binding:
 URL policy, slug shape, the 6th-attempt rejection, no row on rejection, create shape, invalid
-input not consuming quota, both 404 paths, and the redirect increment. Further cases are designed
+input not consuming quota, both 404 paths, the redirect increment, and HEAD not incrementing. Further cases are designed
 in the plan and marked as not run.
 
 ## Deploy
@@ -136,6 +141,7 @@ pnpm deploy
 - `docs/TEST-PLAN.md` — ship set, deferred cases, and what the suite deliberately does not cover
 - `docs/ARCHITECTURE.md` — Workers/D1 assumptions, rejected limiter designs, scale-up thresholds
 - `docs/DECISIONS.md` — corrections made to AI-assisted output, with verification
+- `docs/RUNBOOK.md` — manual UF-1…UF-9 smoke steps, including the 429 check
 
 ## Deliberate limits
 

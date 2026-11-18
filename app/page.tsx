@@ -13,7 +13,37 @@ const dateFormat = new Intl.DateTimeFormat("en-GB", {
 
 export default async function HomePage() {
   const caller = createCaller(await createContext());
-  const { items, hasMore } = await caller.links.list();
+
+  let data: Awaited<ReturnType<typeof caller.links.list>> | null = null;
+  try {
+    data = await caller.links.list();
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "links.list_failed",
+        message: error instanceof Error ? error.message : "unknown error",
+      }),
+    );
+  }
+
+  if (data === null) {
+    return (
+      <main className="container">
+        <header className="header">
+          <h1>Link shortener</h1>
+          <p className="muted">Paste a URL, get a slug. Five links per rolling minute.</p>
+        </header>
+        <section className="card" role="alert">
+          <h2>Could not load your links</h2>
+          <p className="muted">
+            The database may not be migrated. Run <code>pnpm db:migrate</code>, then reload.
+          </p>
+        </section>
+      </main>
+    );
+  }
+
+  const { items, hasMore } = data;
 
   return (
     <main className="container">

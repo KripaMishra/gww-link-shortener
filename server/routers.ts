@@ -8,7 +8,7 @@ import { createCallerFactory, publicProcedure, router } from "./trpc";
 
 export const linksRouter = router({
   create: publicProcedure
-    .input(z.object({ url: z.string() }))
+    .input(z.object({ url: z.string().max(2048, "URL is too long.") }))
     .mutation(async ({ ctx, input }) => {
       const targetUrl = parseTargetUrl(input.url);
       if (targetUrl === null) {

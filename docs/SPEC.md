@@ -154,11 +154,14 @@ UPDATE links SET clicks = clicks + 1 WHERE slug = ? RETURNING target_url;
 ```
 
 3. Re-validate the stored target's protocol (`http`/`https`) as defence in depth; a corrupt row
-   returns 500 rather than redirecting somewhere unsafe.
+   returns 500 rather than redirecting somewhere unsafe. The increment has already run at this
+   point; targets are immutable, so only a direct DB edit can reach this path.
 4. Respond `302` with `Location: <target>`. Never `301`: a permanent redirect is cached by the
    browser and click counting silently stops, and stored targets could never be corrected.
 5. The increment is awaited before responding. `waitUntil` (best-effort) and queue batching are
    documented alternatives; exactness wins at this volume.
+6. `HEAD` resolves the target without the increment, so previews, scanners, and unfurlers do not
+   count as clicks.
 
 ### 5.7 Server vs Client components
 
@@ -169,17 +172,19 @@ UPDATE links SET clicks = clicks + 1 WHERE slug = ? RETURNING target_url;
 | Date formatting | Server | Explicit locale and UTC, deterministic |
 | `CreateLinkForm` | Client | Input state, pending state, `useMutation`, `router.refresh()` |
 | Error alert | Client | Renders validation text and `data.retryAfter` |
-| `app/error.tsx` | Client | Catches a `links.list` failure instead of Next's default page |
+| `app/error.tsx` | Client | Boundary for unexpected render errors |
 
 The form is the only component that must ship JavaScript. The table and the page stay on the
-server.
+server. `links.list` failures are caught in the page itself and rendered as an inline alert with
+the migration hint; the boundary cannot paint before hydration, so relying on it alone would
+leave a fresh clone with a blank 500.
 
 ## 6. User flows
 
 | ID | Flow | Expected |
 |---|---|---|
 | UF-1 | Open `/`, paste `https://example.com/a/b`, submit | Slug shown, form clears, list shows the link with 0 clicks, newest first |
-| UF-2 | Submit empty, `not a url`, `javascript:alert(1)`, or a >2048-char URL | Inline validation error, no link row, **no quota consumed** |
+| UF-2 | Submit `javascript:alert(1)` or a >2048-char URL (both pass native `type="url"`) | Inline server validation error, no link row, **no quota consumed**; empty/`not a url` are stopped earlier by native validation |
 | UF-3 | Create 5 links in under 60 s, then a 6th | 6th shows "5 links per minute — try again in Ns" from typed `data.retryAfter`; no 6th row |
 | UF-4 | Wait out the window and submit again | Creation succeeds; older events have been pruned |
 | UF-5 | Open `/` with no links | Empty-state message; form still works |
@@ -201,7 +206,7 @@ server.
 
 ## 8. Acceptance
 
-The feature ships when the nine-case ship set in `TEST-PLAN.md` is green (or a case is explicitly
+The feature ships when the ten-case ship set in `TEST-PLAN.md` is green (or a case is explicitly
 deferred and named as deferred), `pnpm typecheck`, `pnpm lint`, and `pnpm build` pass, and a
 clean-clone run through `README.md` works. UF-1…UF-9 are verified manually via `docs/RUNBOOK.md`.
 The walkthrough ships even if a non-ship-set case is still open.

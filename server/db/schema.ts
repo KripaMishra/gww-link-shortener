@@ -1,4 +1,5 @@
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { desc } from "drizzle-orm";
 
 export const links = sqliteTable(
   "links",
@@ -11,7 +12,11 @@ export const links = sqliteTable(
     createdAt: integer("created_at", { mode: "number" }).notNull(),
   },
   (table) => [
-    index("links_owner_created_idx").on(table.ownerId, table.createdAt, table.id),
+    index("links_owner_created_idx").on(
+      table.ownerId,
+      desc(table.createdAt),
+      desc(table.id),
+    ),
   ],
 );
 

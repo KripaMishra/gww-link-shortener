@@ -5,7 +5,7 @@ Run `pnpm install && pnpm db:migrate && pnpm dev`, then open http://localhost:30
 Reset local data at any point:
 
 ```bash
-pnpm exec wrangler d1 execute DB --local --command "DELETE FROM links; DELETE FROM rate_limit_events;"
+pnpm db:reset
 ```
 
 ## UF-1 create
@@ -15,8 +15,10 @@ clear, and a new row with `0` clicks at the top of the table.
 
 ## UF-2 validation
 
-Submit `not a url`, then `javascript:alert(1)`. Expect an inline error and no new row. Both
-requests must not consume quota: after three invalid attempts, five valid creates still succeed.
+Submit `javascript:alert(1)`: it passes the browser's `type="url"` check and reaches the server.
+Expect the inline error and no new row. `not a url` never reaches the app — native validation
+stops it first, which is intentional. Bad input must not consume quota: three invalid attempts,
+then five valid creates still succeed.
 
 ## UF-3 rate limit
 
@@ -39,11 +41,17 @@ Reset local data and reload. Expect "No links yet." with the form still usable.
 Click a slug, or:
 
 ```bash
+curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" http://localhost:3000/<slug>
+```
+
+Expect `302` and the target URL. Note the clicks value before and after. A `HEAD` request resolves
+without counting:
+
+```bash
 curl -sI http://localhost:3000/<slug> | sed -n '1p;/^location:/Ip'
 ```
 
-Expect `HTTP/1.1 302 Found` and a `location:` header equal to the target. Reload the list: clicks
-incremented by one per visit.
+Run it and confirm `clicks` did not change. Reload the list: GET increments by one per visit.
 
 ## UF-7 not found
 
@@ -68,6 +76,9 @@ pnpm exec wrangler d1 execute DB --local --command "INSERT INTO links VALUES ('c
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/corrupt   # 500
 curl -sI http://localhost:3000/corrupt | grep -i '^location:' || echo "no redirect"
 ```
+
+The counter is incremented before the target is rejected because resolution and counting are one
+statement. This row is tampered, not app-produced; run `pnpm db:reset` afterwards.
 
 ## Automated equivalent
 

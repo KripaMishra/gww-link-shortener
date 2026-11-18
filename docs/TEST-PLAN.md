@@ -21,7 +21,7 @@ writes across tests in this version (a later test saw ten rows and a stale windo
 therefore applies the real migration SQL once in `test/apply-migrations.ts` and deletes both
 tables in `beforeEach`. Green tests after the reset are the evidence.
 
-## Ship set — 9 cases
+## Ship set — 10 cases
 
 | ID | Covers | Case | Expected |
 |---|---|---|---|
@@ -34,13 +34,14 @@ tables in `beforeEach`. Green tests after the reset are the evidence.
 | T-13 | FR-5 | 3 invalid inputs, then 5 valid creates | All 5 succeed — invalid attempts consumed no quota |
 | T-17 | FR-3 | `handleRedirect` for a valid slug | `302` with the target; `clicks` +1 |
 | T-18 | FR-3 | `handleRedirect` for `/aaaaaaa` (valid shape, no row) and `/foo.bar` (malformed) | Both `404`; the malformed path touches no DB |
+| T-23 | FR-3 | `handleRedirect(..., { count: false })` for a valid slug | `302`; `clicks` unchanged; a following GET increments |
 
 T-18's malformed case passes a throwing DB proxy, so "no DB access" is asserted rather than
 assumed.
 
 Manual smoke also verified the HTTP surface: the sixth create returns **429** with
-`data.retryAfter`, the valid redirect returns **302** with the right `Location`, and the counter
-increments through the real route handler.
+`data.retryAfter`, the valid redirect returns **302** with the right `Location`, a **HEAD** leaves
+`clicks` unchanged, and the counter increments through the real route handler.
 
 ## Designed, not run
 
