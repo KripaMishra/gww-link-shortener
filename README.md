@@ -8,6 +8,10 @@ The interesting part is the edge constraints: no long-lived process, no shared i
 memory, and no timers between requests. The rate limiter and the click counter are therefore
 decided in single SQL statements, not in JavaScript.
 
+## Walkthrough
+
+▶ [Watch the walkthrough recording](./docs/walkthrough.mp4)
+
 ## Architecture at a glance
 
 ```mermaid
