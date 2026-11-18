@@ -10,7 +10,7 @@ decided in single SQL statements, not in JavaScript.
 
 ## Walkthrough
 
-▶ [Watch the walkthrough recording](./docs/walkthrough.mp4)
+▶ [Walkthrough recording (7 min, MP4)](./docs/walkthrough.mp4)
 
 ## Architecture at a glance
 
