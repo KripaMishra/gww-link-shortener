@@ -12,6 +12,9 @@ decided in single SQL statements, not in JavaScript.
 
 ▶ [Walkthrough recording (7 min, MP4)](./docs/walkthrough.mp4)
 
+[Design rationale](./docs/RATIONALE.md) covers the architecture, rate-limit tradeoffs, test
+coverage, and the corrections made during review.
+
 ## Architecture at a glance
 
 ```mermaid
@@ -146,6 +149,7 @@ pnpm deploy
 - `docs/ARCHITECTURE.md` — Workers/D1 assumptions, rejected limiter designs, scale-up thresholds
 - `docs/DECISIONS.md` — corrections made to AI-assisted output, with verification
 - `docs/RUNBOOK.md` — manual UF-1…UF-9 smoke steps, including the 429 check
+- `docs/RATIONALE.md` — design rationale and tradeoffs
 
 ## Deliberate limits
 
