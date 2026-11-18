@@ -215,7 +215,7 @@ The walkthrough ships even if a non-ship-set case is still open.
 
 | Segment | Time | Uses |
 |---|---|---|
-| Demo | 0:00–1:30 | UF-1…UF-7: create, list, click, 6th-attempt rejection |
+| Demo | 0:00–1:30 | UF-1…UF-3, UF-5…UF-7: create, list, click, 6th-attempt rejection |
 | Architecture + component split | 1:30–3:00 | §4, §5.5, §5.7, tRPC server caller vs client mutation |
 | Rate limiting | 3:00–5:00 | §5.3, single-statement lock, D1 single-primary caveat, `ARCHITECTURE.md` alternatives |
 | AI correction | 5:00–6:30 | `DECISIONS.md` D-1 or D-2: what was suggested, why wrong, what changed, how verified |

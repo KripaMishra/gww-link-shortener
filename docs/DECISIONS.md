@@ -17,8 +17,9 @@ table that never changes.
 **Instead.** `export const dynamic = "force-dynamic"` on the page, so the RSC reads per request.
 The form mutation calls `router.refresh()` after success, which now actually re-renders.
 
-**Verified.** `pnpm build` marks `/` as dynamic (`ƒ`), and the smoke run returned newly created
-rows from `links.list` immediately.
+**Verified.** Reproduced both sides: with the export removed, `pnpm build` marks `/` as static
+(`○`); with `export const dynamic = "force-dynamic"`, it marks `/` as `ƒ`. The smoke run returned
+newly created rows from `links.list` immediately.
 
 ## D-2 — "The server does not know its public origin" was false
 
