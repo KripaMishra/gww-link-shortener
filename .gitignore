@@ -1,0 +1,36 @@
+# Assignment materials and working notes — kept local, not part of the submission repo
+Takehome_Task.md
+Takehome_Task*.md
+local/
+
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Local database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.wrangler/
+
+# Tests / coverage
+coverage/
+playwright-report/
+test-results/
+
+# OS / editor
+.DS_Store
+.idea/
+
+# OpenNext build output
+.open-next/
